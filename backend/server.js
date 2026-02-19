@@ -28,6 +28,7 @@ app.use(cors({
     origin: '*', 
     // origin: 'https://techiguru.vercel.app', 
     // origin: 'http://techiguru-frontend.s3-website.ap-south-1.amazonaws.com', 
+    // origin: 'http://techiguru-frontend.s3-website.ap-south-1.amazonaws.com', 
     credentials: true
 }));
 
