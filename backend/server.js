@@ -23,7 +23,8 @@ connectDB().then(() => {
 const app = express();
 
 app.use(cors({
-    origin: 'http://localhost:5173', 
+    // origin: 'http://localhost:5173', 
+    origin: 'http://techiguru.in', 
     // origin: 'https://techiguru.vercel.app', 
     // origin: 'http://techiguru-frontend.s3-website.ap-south-1.amazonaws.com', 
     credentials: true
