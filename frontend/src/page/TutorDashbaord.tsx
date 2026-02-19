@@ -40,7 +40,7 @@ interface CertificateData {
 const getImageUrl = (url: string) => {
     if (!url) return 'https://via.placeholder.com/150?text=No+Image';
     if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `https://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
+        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
     }
     return url;
 };

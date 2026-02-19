@@ -8,12 +8,12 @@ interface CourseProps {
     id: string | number; // MongoDB uses string IDs
     title: string;
     category: string;
-    students: number;
-    rating: number;
+    students?: number;
+    rating?: number;
     price: string | number;
-    thumbnail: string;
-    lessons: number;
-    duration: string;
+    thumbnail: string | { url: string } | any; // 🔥 FIXED: Allow object or string
+    lessons?: number;
+    duration?: string;
   };
   isInactive?: boolean;
 }
@@ -26,23 +26,25 @@ const CourseCard: React.FC<CourseProps> = ({ course, isInactive }) => {
     navigate(`/course/${course.id}`);
   };
 
-  // --- HELPER: Fix Broken URLs ---
-  const getThumbnailUrl = (url: string) => {
-    if (!url) return 'https://via.placeholder.com/600x400?text=No+Image';
+  // --- HELPER: Fix Broken URLs & Handle Data Types ---
+  const getThumbnailUrl = (thumb: any) => {
+    if (!thumb) return 'https://via.placeholder.com/600x400?text=No+Image';
     
+    // 🔥 Extract the string whether the backend sends a String or an Object { url: '...' }
+    const urlString = typeof thumb === 'string' ? thumb : thumb.url;
+    
+    if (!urlString) return 'https://via.placeholder.com/600x400?text=No+Image';
+
     // Check if it's a local upload from the backend
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
+    if (urlString.startsWith('/uploads') || urlString.startsWith('\\uploads')) {
       // Replace backslashes with forward slashes for URL compatibility
-      const cleanPath = url.replace(/\\/g, '/');
-      // return `https://techiguru-backend.onrender.com${cleanPath}`; 
-      return `http://13.127.138.86:5000/api${cleanPath}`; 
-      // return `http://localhost:5000${cleanPath}`; 
+      return `http://13.127.138.86:5000${urlString.replace(/\\/g, '/')}`;
     }
     
     // Return external URLs (e.g. Unsplash) as is
-    return url;
+    return urlString;
   };
-  console.log('CourseCard Rendered with:', getThumbnailUrl(course.thumbnail)  );
+
   return (
     <motion.div 
       whileHover={{ y: -8 }}
@@ -56,7 +58,6 @@ const CourseCard: React.FC<CourseProps> = ({ course, isInactive }) => {
         <motion.img 
           whileHover={{ scale: 1.05 }}
           transition={{ duration: 0.6 }}
-          // 👇 USES THE HELPER FUNCTION HERE
           src={getThumbnailUrl(course.thumbnail)} 
           alt={course.title} 
           className="w-full h-full object-cover"
@@ -69,7 +70,7 @@ const CourseCard: React.FC<CourseProps> = ({ course, isInactive }) => {
         
         {/* Category Badge */}
         <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 uppercase tracking-wide shadow-sm">
-          {course.category}
+          {course.category || 'Course'}
         </div>
 
         {/* Play Overlay (appears on hover) */}
@@ -106,13 +107,13 @@ const CourseCard: React.FC<CourseProps> = ({ course, isInactive }) => {
         {/* Meta Details */}
         <div className="flex items-center gap-4 text-slate-500 text-xs font-medium mb-6 mt-auto pt-4 border-t border-slate-50">
           <div className="flex items-center gap-1.5">
-            <BookOpen size={14} className="text-purple-400"/> {course.lessons} Lsns
+            <BookOpen size={14} className="text-purple-400"/> {course.lessons || 0} Lsns
           </div>
           <div className="flex items-center gap-1.5">
-            <Clock size={14} className="text-purple-400"/> {course.duration}
+            <Clock size={14} className="text-purple-400"/> {course.duration || '0h'}
           </div>
           <div className="flex items-center gap-1.5 ml-auto">
-            <Users size={14} className="text-slate-400"/> {course.students}
+            <Users size={14} className="text-slate-400"/> {course.students || 0}
           </div>
         </div>
 

@@ -21,7 +21,7 @@ interface CertificateData {
 const getImageUrl = (url: string | null) => {
     if (!url) return 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2029&auto=format&fit=crop'; // Better placeholder
     if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `https://13.127.138.86:5000${url.replace(/\\/g, '/')}`; 
+        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`; 
     }
     return url;
 };
