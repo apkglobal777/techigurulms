@@ -2,29 +2,26 @@ const Course = require('../models/Course');
 const path = require('path');
 const fs = require('fs');
 
-// @desc    Get courses (Public - Supports Filtering)
+// @desc    Get courses (Public, Paginated, Filtered)
 // @route   GET /api/courses
 // @access  Public
 const getCourses = async (req, res) => {
   try {
     const pageSize = 12;
     const page = Number(req.query.pageNumber) || 1;
-
     const status = req.query.status || 'Active';
 
+    // Search by Keyword
     const keyword = req.query.keyword
-      ? {
-          title: {
-            $regex: req.query.keyword,
-            $options: 'i',
-          },
-        }
+      ? { title: { $regex: req.query.keyword, $options: 'i' } }
       : {};
 
-    const category = req.query.category && req.query.category !== 'All' 
-      ? { category: req.query.category } 
+    // Filter by Category
+    const category = req.query.category && req.query.category !== 'All'
+      ? { category: req.query.category }
       : {};
 
+    // Filter by Level
     const level = req.query.level && req.query.level !== 'All'
       ? { level: req.query.level }
       : {};
@@ -44,12 +41,13 @@ const getCourses = async (req, res) => {
   }
 };
 
-// @desc    Get single course details
+// @desc    Get single course by ID
 // @route   GET /api/courses/:id
 // @access  Public
 const getCourseById = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id).populate('instructor', 'name avatar bio title');
+    const course = await Course.findById(req.params.id)
+      .populate('instructor', 'name avatar bio title');
 
     if (course) {
       res.json(course);
@@ -66,14 +64,32 @@ const getCourseById = async (req, res) => {
 // @access  Private (Instructor/Admin)
 const createCourse = async (req, res) => {
   try {
+    const {
+      title, description, price, category, status,
+      thumbnail, sections, level, learningPoints, requirements
+    } = req.body;
+
     const newCourse = new Course({
-      ...req.body,
-      instructor: req.user._id, 
+      instructor: req.user._id,
+      title,
+      description,
+      price,
+      category,
+      status: status || 'Draft',
+      // FIX: Wrap string URL in an object to match Schema
+      thumbnail: thumbnail ? { url: thumbnail } : undefined,
+      level,
+      learningPoints,
+      requirements,
+      // IMPORTANT: This 'sections' array contains the nested
+      // resources, codeSnippets, and quizzes from the frontend
+      sections: sections || []
     });
 
     const createdCourse = await newCourse.save();
     res.status(201).json(createdCourse);
   } catch (error) {
+    console.error("Create Course Error:", error);
     res.status(400).json({ message: 'Invalid course data', error: error.message });
   }
 };
@@ -86,26 +102,32 @@ const updateCourse = async (req, res) => {
     const course = await Course.findById(req.params.id);
 
     if (course) {
-      // Check ownership
+      // Authorization Check
       if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Not authorized to update this course' });
       }
 
-      // Update fields
+      // Update Fields
       course.title = req.body.title || course.title;
       course.description = req.body.description || course.description;
       course.price = req.body.price !== undefined ? req.body.price : course.price;
       course.category = req.body.category || course.category;
+      course.status = req.body.status || course.status;
       
-      // Update Sections (Including the new Lesson Descriptions)
-      if (req.body.sections) {
-          course.sections = req.body.sections;
+      // FIX: Handle thumbnail update. If string is sent, wrap it in object.
+      if (req.body.thumbnail) {
+        course.thumbnail = { url: req.body.thumbnail };
       }
 
-      course.status = req.body.status || course.status;
-      course.thumbnail = req.body.thumbnail || course.thumbnail;
+      course.level = req.body.level || course.level;
       course.learningPoints = req.body.learningPoints || course.learningPoints;
       course.requirements = req.body.requirements || course.requirements;
+
+      // Update Sections (Full Replace)
+      // This ensures removed items (quizzes, resources) are actually deleted
+      if (req.body.sections) {
+        course.sections = req.body.sections;
+      }
 
       const updatedCourse = await course.save();
       res.json(updatedCourse);
@@ -113,6 +135,7 @@ const updateCourse = async (req, res) => {
       res.status(404).json({ message: 'Course not found' });
     }
   } catch (error) {
+    console.error("Update Course Error:", error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
@@ -126,9 +149,8 @@ const deleteCourse = async (req, res) => {
 
     if (course) {
       if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Not authorized to delete this course' });
+        return res.status(403).json({ message: 'Not authorized' });
       }
-
       await course.deleteOne();
       res.json({ message: 'Course removed' });
     } else {
@@ -139,43 +161,31 @@ const deleteCourse = async (req, res) => {
   }
 };
 
-// @desc    Get courses created by current instructor
+// @desc    Get Instructor Courses
 // @route   GET /api/courses/mycourses
 // @access  Private (Instructor)
 const getMyCourses = async (req, res) => {
   try {
-    const statusFilter = req.query.status ? { status: req.query.status } : {};
-    
-    const courses = await Course.find({ 
-        instructor: req.user._id,
-        ...statusFilter 
-    }).sort({ updatedAt: -1 });
-
+    const courses = await Course.find({ instructor: req.user._id }).sort({ updatedAt: -1 });
     res.json(courses);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
-// @desc    Upload Course Thumbnail
+// @desc    Upload Course Image/File
 // @route   POST /api/courses/upload
 // @access  Private
 const uploadCourseImage = async (req, res) => {
   try {
     if (!req.file) {
-        return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ message: 'No file uploaded' });
     }
-
-    // Return the path relative to server
-    // NOTE: Ensure your server.js serves the '/uploads' folder statically
+    // Convert backslashes to forward slashes for URL compatibility
     const imagePath = `/${req.file.path.replace(/\\/g, '/')}`;
-    
-    res.status(200).json({ 
-        url: imagePath,
-        message: 'Image uploaded successfully' 
-    });
+    res.status(200).json({ url: imagePath, message: 'File uploaded successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Image upload failed', error: error.message });
+    res.status(500).json({ message: 'File upload failed', error: error.message });
   }
 };
 

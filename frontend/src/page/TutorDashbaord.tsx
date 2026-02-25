@@ -5,26 +5,74 @@ import {
   Users, Clock, BarChart3, Search, XCircle, 
   Mail, Image as ImageIcon, Loader, ChevronRight, 
   Layers, Menu, X, Bell, ExternalLink, ChevronDown, 
-  ChevronUp, AlignLeft, Award, Link as LinkIcon 
+  ChevronUp, AlignLeft, Award, Link as LinkIcon,
+  FileText, Code, HelpCircle, Plus, CheckCircle2,
+  Trash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCourse } from '../context/CourseContext'; 
-import { useAuth } from '../context/AuthContext';     
+import { useAuth } from '../context/AuthContext';      
 import api from '../api/axios'; 
 import { Link, useNavigate } from 'react-router-dom';
 
 // --- TYPES ---
-interface VideoItem { 
-    id: number | string; 
-    title: string; 
-    videoKey: string; 
-    duration: string; 
-    isFree: boolean;
-    description: string;
+
+interface ResourceItem {
+  id: string | number;
+  title: string;
+  url: string;
 }
 
-interface TopicItem { id: number | string; title: string; videos: VideoItem[]; }
-interface CourseData { id?: string; title: string; description: string; price: string; category: string; status: 'Active' | 'Inactive' | 'Draft'; thumbnail: string | null; topics: TopicItem[]; }
+interface CodeSnippetItem {
+  id: string | number;
+  language: string;
+  code: string;
+}
+
+interface QuizOption {
+  id: string | number;
+  text: string;
+  isCorrect: boolean;
+}
+
+interface QuizItem {
+  id: string | number;
+  question: string;
+  options: QuizOption[];
+}
+
+interface VideoItem { 
+  id: number | string; 
+  title: string; 
+  videoKey: string; 
+  duration: string; 
+  isFree: boolean;
+  description: string;
+  // Extras
+  resources: ResourceItem[];
+  codeSnippets: CodeSnippetItem[];
+  quizzes: QuizItem[];
+}
+
+interface TopicItem { 
+    id: number | string; 
+    title: string; 
+    videos: VideoItem[]; 
+}
+
+interface CourseData { 
+  id?: string; 
+  title: string; 
+  description: string; 
+  price: string; 
+  category: string; 
+  status: 'Active' | 'Inactive' | 'Draft'; 
+  thumbnail: string | null; 
+  topics: TopicItem[]; 
+  level?: string;
+  learningPoints?: string[];
+  requirements?: string[];
+}
 
 interface CertificateData {
     id?: string;
@@ -40,12 +88,235 @@ interface CertificateData {
 const getImageUrl = (url: string) => {
     if (!url) return 'https://via.placeholder.com/150?text=No+Image';
     if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
+        // Adjust port if your backend runs on a different one locally vs production
+        const baseUrl = 'http://13.127.138.86:5000'; 
+        return `${baseUrl}${url.replace(/\\/g, '/')}`;
     }
     return url;
 };
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENT: VIDEO EXTRAS (Resources, Code, Quiz) ---
+const VideoExtras: React.FC<{ 
+    video: VideoItem; 
+    topicId: number | string; 
+    updateVideo: (tId: number | string, vId: number | string, field: keyof VideoItem, val: any) => void;
+}> = ({ video, topicId, updateVideo }) => {
+    const [activeTab, setActiveTab] = useState<'resources' | 'code' | 'quiz'>('resources');
+
+    // --- HANDLERS ---
+    const addResource = () => {
+        const newRes = [...video.resources, { id: Date.now(), title: '', url: '' }];
+        updateVideo(topicId, video.id, 'resources', newRes);
+    };
+    const updateResource = (idx: number, field: keyof ResourceItem, val: string) => {
+        const newRes = [...video.resources];
+        newRes[idx] = { ...newRes[idx], [field]: val };
+        updateVideo(topicId, video.id, 'resources', newRes);
+    };
+    const removeResource = (idx: number) => {
+        const newRes = video.resources.filter((_, i) => i !== idx);
+        updateVideo(topicId, video.id, 'resources', newRes);
+    };
+
+    const addSnippet = () => {
+        const newSnip = [...video.codeSnippets, { id: Date.now(), language: 'javascript', code: '' }];
+        updateVideo(topicId, video.id, 'codeSnippets', newSnip);
+    };
+    const updateSnippet = (idx: number, field: keyof CodeSnippetItem, val: string) => {
+        const newSnip = [...video.codeSnippets];
+        newSnip[idx] = { ...newSnip[idx], [field]: val };
+        updateVideo(topicId, video.id, 'codeSnippets', newSnip);
+    };
+    const removeSnippet = (idx: number) => {
+        const newSnip = video.codeSnippets.filter((_, i) => i !== idx);
+        updateVideo(topicId, video.id, 'codeSnippets', newSnip);
+    };
+
+    // --- QUIZ HANDLER ---
+    const addQuiz = () => {
+        const newQuiz = [...video.quizzes, { 
+            id: Date.now(), 
+            question: '', 
+            options: [
+                { id: 1, text: '', isCorrect: false },
+                { id: 2, text: '', isCorrect: false },
+                { id: 3, text: '', isCorrect: false },
+                { id: 4, text: '', isCorrect: false }
+            ] 
+        }];
+        updateVideo(topicId, video.id, 'quizzes', newQuiz);
+    };
+
+    const updateQuizQuestion = (qIdx: number, val: string) => {
+        const newQuiz = [...video.quizzes];
+        newQuiz[qIdx].question = val;
+        updateVideo(topicId, video.id, 'quizzes', newQuiz);
+    };
+
+    const updateQuizOption = (qIdx: number, oIdx: number, field: keyof QuizOption, val: any) => {
+        const newQuiz = [...video.quizzes];
+        newQuiz[qIdx].options[oIdx] = { ...newQuiz[qIdx].options[oIdx], [field]: val };
+        
+        // Single Correct Answer Logic
+        if (field === 'isCorrect' && val === true) {
+             newQuiz[qIdx].options.forEach((opt, i) => {
+                 if(i !== oIdx) opt.isCorrect = false;
+             });
+        }
+        updateVideo(topicId, video.id, 'quizzes', newQuiz);
+    };
+
+    const removeQuiz = (idx: number) => {
+        const newQuiz = video.quizzes.filter((_, i) => i !== idx);
+        updateVideo(topicId, video.id, 'quizzes', newQuiz);
+    };
+
+    return (
+        <div className="mt-6 border-t border-dashed border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
+                    {[
+                        { id: 'resources', icon: FileText, label: 'Resources' },
+                        { id: 'code', icon: Code, label: 'Code' },
+                        { id: 'quiz', icon: HelpCircle, label: 'Quiz' }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                                activeTab === tab.id 
+                                ? 'bg-white text-violet-600 shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <tab.icon size={14} /> {tab.label}
+                            <span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[10px]">
+                                {tab.id === 'resources' ? video.resources.length : 
+                                 tab.id === 'code' ? video.codeSnippets.length : 
+                                 video.quizzes.length}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                {/* --- RESOURCES TAB --- */}
+                {activeTab === 'resources' && (
+                    <div className="space-y-3">
+                        {video.resources.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No resources added yet.</p>}
+                        {video.resources.map((res, idx) => (
+                            <div key={res.id} className="flex gap-2 items-center group">
+                                <div className="grid grid-cols-2 gap-2 flex-1">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Title (e.g. Cheat Sheet PDF)" 
+                                        className="text-xs p-2 border border-slate-200 rounded-lg focus:border-violet-400 outline-none"
+                                        value={res.title}
+                                        onChange={(e) => updateResource(idx, 'title', e.target.value)}
+                                    />
+                                    <input 
+                                        type="text" 
+                                        placeholder="URL (e.g. Google Drive Link)" 
+                                        className="text-xs p-2 border border-slate-200 rounded-lg focus:border-violet-400 outline-none"
+                                        value={res.url}
+                                        onChange={(e) => updateResource(idx, 'url', e.target.value)}
+                                    />
+                                </div>
+                                <button onClick={() => removeResource(idx)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash size={14}/></button>
+                            </div>
+                        ))}
+                        <button onClick={addResource} className="text-xs font-bold text-violet-600 hover:bg-violet-50 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-dashed border-violet-200 w-full justify-center">
+                            <Plus size={14}/> Add Resource
+                        </button>
+                    </div>
+                )}
+
+                {/* --- CODE TAB --- */}
+                {activeTab === 'code' && (
+                    <div className="space-y-4">
+                        {video.codeSnippets.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No code snippets added yet.</p>}
+                        {video.codeSnippets.map((snip, idx) => (
+                            <div key={snip.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-slate-100 p-2 flex justify-between items-center border-b border-slate-200">
+                                    <select 
+                                        className="text-xs bg-white border border-slate-300 rounded px-2 py-1 outline-none"
+                                        value={snip.language}
+                                        onChange={(e) => updateSnippet(idx, 'language', e.target.value)}
+                                    >
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="python">Python</option>
+                                        <option value="java">Java</option>
+                                        <option value="html">HTML</option>
+                                        <option value="css">CSS</option>
+                                        <option value="sql">SQL</option>
+                                    </select>
+                                    <button onClick={() => removeSnippet(idx)} className="text-slate-400 hover:text-red-500"><X size={14}/></button>
+                                </div>
+                                <textarea 
+                                    className="w-full h-32 p-3 text-xs font-mono bg-[#1e1e1e] text-green-400 outline-none resize-y"
+                                    placeholder="// Paste your code here..."
+                                    value={snip.code}
+                                    onChange={(e) => updateSnippet(idx, 'code', e.target.value)}
+                                />
+                            </div>
+                        ))}
+                        <button onClick={addSnippet} className="text-xs font-bold text-violet-600 hover:bg-violet-50 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-dashed border-violet-200 w-full justify-center">
+                            <Plus size={14}/> Add Snippet
+                        </button>
+                    </div>
+                )}
+
+                {/* --- QUIZ TAB --- */}
+                {activeTab === 'quiz' && (
+                    <div className="space-y-6">
+                        {video.quizzes.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No quizzes added yet.</p>}
+                        {video.quizzes.map((quiz, qIdx) => (
+                            <div key={quiz.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm relative group">
+                                <button onClick={() => removeQuiz(qIdx)} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500"><X size={14}/></button>
+                                <div className="mb-3">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Question {qIdx + 1}</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full text-sm font-bold border-b border-slate-200 focus:border-violet-500 outline-none py-1 text-slate-800 placeholder:text-slate-300"
+                                        placeholder="Enter the question here..."
+                                        value={quiz.question}
+                                        onChange={(e) => updateQuizQuestion(qIdx, e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    {quiz.options.map((opt, oIdx) => (
+                                        <div key={opt.id} className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => updateQuizOption(qIdx, oIdx, 'isCorrect', !opt.isCorrect)}
+                                                className={`p-1.5 rounded-full transition-colors shrink-0 ${opt.isCorrect ? 'text-green-500 bg-green-50 ring-2 ring-green-100' : 'text-slate-300 hover:text-slate-400'}`}
+                                                title="Mark as Correct Answer"
+                                            >
+                                                <CheckCircle2 size={16} className={opt.isCorrect ? "fill-green-500 text-white" : ""} />
+                                            </button>
+                                            <span className="text-[10px] font-bold text-slate-400 w-4">{String.fromCharCode(65 + oIdx)}</span>
+                                            <input 
+                                                type="text" 
+                                                className={`flex-1 text-xs p-2 border rounded-lg outline-none transition-all ${opt.isCorrect ? 'border-green-300 bg-green-50/20' : 'border-slate-100 focus:border-violet-200'}`}
+                                                placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                value={opt.text}
+                                                onChange={(e) => updateQuizOption(qIdx, oIdx, 'text', e.target.value)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={addQuiz} className="text-xs font-bold text-violet-600 hover:bg-violet-50 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-dashed border-violet-200 w-full justify-center">
+                            <Plus size={14}/> Add MCQ Question
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 // 1. VIDEO ROW COMPONENT 
 const VideoRow: React.FC<{ 
@@ -97,9 +368,9 @@ const VideoRow: React.FC<{
                             <button 
                                 onClick={() => setIsExpanded(!isExpanded)} 
                                 className={`p-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-violet-100 text-violet-600' : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50'}`}
-                                title="Add Description/Notes"
+                                title="Edit Details & Extras"
                             >
-                                {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                {isExpanded ? <ChevronUp size={18} /> : <Settings size={18} />}
                             </button>
                             <button 
                                 onClick={() => deleteVideo(topicId, video.id)} 
@@ -121,16 +392,19 @@ const VideoRow: React.FC<{
                         exit={{ height: 0, opacity: 0 }}
                         className="bg-slate-50/50 border-t border-slate-100"
                     >
-                        <div className="p-4 space-y-2">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                <AlignLeft size={14} /> Lesson Summary / Notes
+                        <div className="p-4">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                <AlignLeft size={14} /> Lesson Summary
                             </div>
                             <textarea 
-                                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-sm text-slate-600 resize-y min-h-[100px]"
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-sm text-slate-600 resize-y min-h-[80px]"
                                 placeholder="Describe what the students will learn in this video lesson..."
                                 value={video.description || ''}
                                 onChange={(e) => updateVideo(topicId, video.id, 'description', e.target.value)}
                             />
+
+                            {/* --- INTEGRATED EXTRAS --- */}
+                            <VideoExtras video={video} topicId={topicId} updateVideo={updateVideo} />
                         </div>
                     </motion.div>
                 )}
@@ -210,39 +484,69 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClose }: any) =>
 // 3. COURSE BUILDER
 const CourseBuilder: React.FC<{ initialData?: any; onSave: (data: CourseData) => void; onCancel: () => void; isSaving: boolean; }> = ({ initialData, onSave, onCancel, isSaving }) => {
   const [uploading, setUploading] = useState(false);
+  const { uploadCourseAsset } = useCourse(); // Context hook for uploads
+
   const [courseData, setCourseData] = useState<CourseData>(() => {
-     if (initialData) {
-       return {
-         id: initialData.id,
-         title: initialData.title || '',
-         description: initialData.description || '',
-         price: initialData.price?.toString() || '',
-         category: initialData.category || 'Development',
-         status: initialData.status || 'Draft',
-         thumbnail: initialData.thumbnail || null,
-         topics: initialData.topics || [] 
-       };
-     }
-     return { title: '', description: '', price: '', category: 'Development', status: 'Draft', thumbnail: null, topics: [{ id: Date.now(), title: 'Introduction', videos: [] }] };
+      if (initialData) {
+        return {
+          id: initialData.id,
+          title: initialData.title || '',
+          description: initialData.description || '',
+          price: initialData.price?.toString() || '',
+          category: initialData.category || 'Development',
+          status: initialData.status || 'Draft',
+          thumbnail: initialData.thumbnail || null,
+          topics: initialData.topics || [], // Mapped correctly in handleEditCourse
+          level: initialData.level || 'All Levels'
+        };
+      }
+      return { 
+          title: '', 
+          description: '', 
+          price: '', 
+          category: 'Development', 
+          status: 'Draft', 
+          thumbnail: null, 
+          topics: [{ id: Date.now(), title: 'Introduction', videos: [] }] 
+      };
   });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      const formData = new FormData();
-      formData.append('image', e.target.files[0]);
       setUploading(true);
-      try {
-        const { data } = await api.post('/courses/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setCourseData(prev => ({ ...prev, thumbnail: data.url }));
-      } catch (error) { alert("Image upload failed"); } finally { setUploading(false); }
+      const result = await uploadCourseAsset(e.target.files[0]);
+      if (result.success) {
+         setCourseData(prev => ({ ...prev, thumbnail: result.url }));
+      } else {
+         alert("Image upload failed: " + result.message);
+      }
+      setUploading(false);
     }
   };
 
   const handleAddTopic = () => setCourseData(prev => ({ ...prev, topics: [...prev.topics, { id: Date.now(), title: '', videos: [] }] }));
-  const handleAddVideo = (tId: number | string) => setCourseData(prev => ({ ...prev, topics: prev.topics.map(t => t.id === tId ? { ...t, videos: [...t.videos, { id: Date.now(), title: '', videoKey: '', duration: '', isFree: false, description: '' }] } : t) }));
+  
+  const handleAddVideo = (tId: number | string) => setCourseData(prev => ({ ...prev, topics: prev.topics.map(t => t.id === tId ? { 
+      ...t, 
+      videos: [...t.videos, { 
+          id: Date.now(), 
+          title: '', 
+          videoKey: '', 
+          duration: '', 
+          isFree: false, 
+          description: '',
+          resources: [],
+          codeSnippets: [],
+          quizzes: []
+      }] 
+  } : t) }));
+
   const updateTopic = (id: number | string, val: string) => setCourseData(prev => ({ ...prev, topics: prev.topics.map(t => t.id === id ? { ...t, title: val } : t) }));
+  
   const updateVideo = (tId: number | string, vId: number | string, field: keyof VideoItem, val: any) => setCourseData(prev => ({ ...prev, topics: prev.topics.map(t => t.id === tId ? { ...t, videos: t.videos.map(v => v.id === vId ? { ...v, [field]: val } : v) } : t) }));
+  
   const deleteTopic = (id: number | string) => setCourseData(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== id) }));
+  
   const deleteVideo = (tId: number | string, vId: number | string) => setCourseData(prev => ({ ...prev, topics: prev.topics.map(t => t.id === tId ? { ...t, videos: t.videos.filter(v => v.id !== vId) } : t) }));
 
   return (
@@ -422,7 +726,7 @@ const CourseList: React.FC<any> = ({ courses, onEdit, onDelete, isLoading }) => 
                         <td className="p-5">
                         <div className="flex items-center gap-4">
                             <div className="w-20 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-sm relative">
-                                <img src={getImageUrl(course.thumbnail?.url)} alt="Thumbnail" className="w-full h-full object-cover" />
+                                <img src={getImageUrl(course.thumbnail?.url || course.thumbnail)} alt="Thumbnail" className="w-full h-full object-cover" />
                             </div>
                             <div>
                                 <span className="block font-bold text-slate-800 text-sm group-hover:text-violet-700 transition-colors line-clamp-1">{course.title}</span>
@@ -570,6 +874,8 @@ const CertificateList: React.FC<any> = ({ certificates, onEdit, onDelete, onCrea
 // 6. CERTIFICATE BUILDER COMPONENT
 const CertificateBuilder: React.FC<{ initialData?: any; onSave: (data: CertificateData) => void; onCancel: () => void; isSaving: boolean; }> = ({ initialData, onSave, onCancel, isSaving }) => {
     const [uploading, setUploading] = useState(false);
+    const { uploadCourseAsset } = useCourse();
+
     const [certData, setCertData] = useState<CertificateData>(() => {
        if (initialData) {
          return {
@@ -587,14 +893,15 @@ const CertificateBuilder: React.FC<{ initialData?: any; onSave: (data: Certifica
   
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files?.[0]) {
-        const formData = new FormData();
-        formData.append('image', e.target.files[0]);
         setUploading(true);
-        try {
-          // --- CONNECTED TO BACKEND UPLOAD ROUTE ---
-          const { data } = await api.post('/certificates/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-          setCertData(prev => ({ ...prev, thumbnail: data.url }));
-        } catch (error) { alert("Image upload failed"); } finally { setUploading(false); }
+        // Using same upload function (thumbnails are thumbnails)
+        const result = await uploadCourseAsset(e.target.files[0]);
+        if (result.success) {
+            setCertData(prev => ({ ...prev, thumbnail: result.url }));
+        } else {
+            alert("Image upload failed");
+        }
+        setUploading(false);
       }
     };
   
@@ -825,11 +1132,7 @@ const TutorDashboard: React.FC = () => {
     setLoadingCerts(true);
     try {
         const { data } = await api.get('/certificates/mycertificates');
-        // Map MongoDB _id to frontend id
-        const mappedData = data.map((cert: any) => ({
-            ...cert,
-            id: cert._id 
-        }));
+        const mappedData = data.map((cert: any) => ({ ...cert, id: cert._id }));
         setCertificates(mappedData);
     } catch (error) {
         console.error("Error fetching certificates", error);
@@ -843,7 +1146,7 @@ const TutorDashboard: React.FC = () => {
           if (!user) {
               navigate('/login');
           } else if (user.role !== 'instructor') {
-              navigate('/'); // Redirect to home if they are a student
+              navigate('/'); 
           }
       }
   }, [user, authLoading, navigate]);
@@ -851,65 +1154,87 @@ const TutorDashboard: React.FC = () => {
   useEffect(() => { 
       if(user?.role === 'instructor') {
           fetchMyCourses(); 
-          fetchCertificates(); // <-- Fetch certificates on load
+          fetchCertificates(); 
       }
   }, [user]);
 
   // --- COURSE CRUD LOGIC ---
   const handleEditCourse = (course: any) => {
-    const mapped = {
-        id: course._id, 
-        title: course.title, 
-        description: course.description, 
-        price: course.price, 
-        category: course.category, 
-        status: course.status, 
-        thumbnail: course.thumbnail?.url,
-        topics: course.sections?.map((sec: any) => ({ 
-            id: sec._id || Date.now(), 
-            title: sec.title, 
-            videos: sec.lessons?.map((les: any) => ({ 
-                id: les._id, 
-                title: les.title, 
-                videoKey: les.videoKey, 
-                duration: les.videoDuration?.toString(), 
-                isFree: les.isFree,
-                description: les.description || '' 
-            })) || [] 
-        })) || []
+    // Map Backend Schema (sections/lessons) -> Frontend State (topics/videos)
+    const mappedTopics = course.sections?.map((sec: any) => ({
+      id: sec._id || Date.now(), 
+      title: sec.title,
+      videos: sec.lessons?.map((les: any) => ({
+        id: les._id || Date.now(),
+        title: les.title,
+        videoKey: les.videoKey || '',
+        duration: les.videoDuration?.toString() || '',
+        isFree: les.isFree || false,
+        description: les.description || '',
+        resources: les.resources || [],
+        codeSnippets: les.codeSnippets || [],
+        quizzes: les.quizzes || []
+      })) || []
+    })) || [];
+
+    const mappedCourse = {
+        ...course,
+        id: course._id, // Ensure ID is accessible
+        topics: mappedTopics, // Attach mapped topics
+        thumbnail: course.thumbnail?.url || course.thumbnail
     };
-    setEditingCourse(mapped); 
+
+    setEditingCourse(mappedCourse); 
     setActiveTab('add_course');
   };
 
   const handleSaveCourse = async (data: CourseData) => {
     setIsSaving(true);
+    
+    // Map Frontend State (topics/videos) -> Backend Payload (sections/lessons)
     const payload = {
-        title: data.title, 
-        description: data.description, 
-        price: Number(data.price), 
-        category: data.category, 
+        title: data.title,
+        description: data.description,
+        price: Number(data.price),
+        category: data.category,
         status: data.status,
-        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-        sections: data.topics.map((t) => ({ 
-            title: t.title, 
-            lessons: t.videos.map((v) => ({ 
-                title: v.title, 
+        thumbnail: data.thumbnail, 
+        level: data.level,
+        sections: data.topics.map(topic => ({
+            title: topic.title,
+            lessons: topic.videos.map(video => ({
+                title: video.title,
                 type: 'video', 
-                videoKey: v.videoKey, 
-                videoDuration: parseInt(v.duration || '0'),
-                description: v.description 
-            })) 
+                videoKey: video.videoKey,
+                videoDuration: parseInt(video.duration) || 0,
+                description: video.description,
+                isFree: video.isFree,
+                resources: video.resources,
+                codeSnippets: video.codeSnippets,
+                quizzes: video.quizzes
+            }))
         }))
     };
-    const result = editingCourse?.id ? await updateCourse(editingCourse.id, payload) : await createCourse(payload);
+
+    let result;
+    if (editingCourse?.id) {
+        result = await updateCourse(editingCourse.id, payload);
+    } else {
+        result = await createCourse(payload);
+    }
+    
     setIsSaving(false);
-    if (result.success) { setEditingCourse(null); setActiveTab('active_courses'); } else { alert(result.message); }
+    if (result.success) { 
+        setEditingCourse(null); 
+        setActiveTab('active_courses'); 
+    } else { 
+        alert(result.message); 
+    }
   };
 
   const handleDeleteCourse = async (id: string) => { if(confirm("Delete this course?")) await deleteCourse(id); };
 
-  // --- CERTIFICATE CRUD LOGIC (CONNECTED TO API) ---
+  // --- CERTIFICATE CRUD LOGIC ---
   const handleEditCertificate = (cert: CertificateData) => {
       setEditingCertificate(cert);
       setActiveTab('add_certificate');
@@ -929,7 +1254,6 @@ const TutorDashboard: React.FC = () => {
   const handleSaveCertificate = async (data: CertificateData) => {
       setIsSaving(true);
       try {
-          // Construct Payload mapping local fields to backend Schema fields
           const payload = {
               title: data.title,
               description: data.description,
@@ -938,19 +1262,10 @@ const TutorDashboard: React.FC = () => {
               status: data.status,
               thumbnail: data.thumbnail
           };
-
-          if (data.id) {
-              // Update existing
-              await api.put(`/certificates/${data.id}`, payload);
-          } else {
-              // Create new
-              await api.post('/certificates', payload);
-          }
-          
-          await fetchCertificates(); // Refresh the list from database
+          if (data.id) { await api.put(`/certificates/${data.id}`, payload); } else { await api.post('/certificates', payload); }
+          await fetchCertificates(); 
           setEditingCertificate(null);
           setActiveTab('certificates');
-
       } catch (error: any) {
           alert(error.response?.data?.message || "Failed to save certificate");
       } finally {
@@ -960,7 +1275,6 @@ const TutorDashboard: React.FC = () => {
 
   if(authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader className="animate-spin text-violet-600"/></div>;
 
-  // Prevent rendering the dashboard while the redirect is happening
   if (!user || user.role !== 'instructor') return null; 
 
   return (
@@ -977,10 +1291,7 @@ const TutorDashboard: React.FC = () => {
         onClose={() => setSidebarOpen(false)}
       />
       
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col lg:pl-72 h-screen overflow-hidden">
-        
-        {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between p-4 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 sticky top-0">
           <div className="flex items-center gap-3">
              <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24}/></button>
@@ -989,7 +1300,6 @@ const TutorDashboard: React.FC = () => {
           <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center text-violet-700 font-bold text-xs">{user?.name?.[0] || 'T'}</div>
         </div>
 
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 scroll-smooth">
           <AnimatePresence mode="wait">
             <motion.div 
@@ -1004,11 +1314,8 @@ const TutorDashboard: React.FC = () => {
                 activeTab === 'overview' ? <DashboardOverview courses={myCourses} certificatesCount={certificates.length} /> :
                 activeTab === 'active_courses' ? <CourseList status="Active" courses={myCourses} onEdit={handleEditCourse} onDelete={handleDeleteCourse} isLoading={courseLoading} /> :
                 activeTab === 'add_course' ? <CourseBuilder initialData={editingCourse} onSave={handleSaveCourse} onCancel={() => setActiveTab('active_courses')} isSaving={isSaving} /> :
-                
-                // CERTIFICATE TABS ROUTING
                 activeTab === 'certificates' ? <CertificateList certificates={certificates} onEdit={handleEditCertificate} onDelete={handleDeleteCertificate} onCreateClick={() => { setEditingCertificate(null); setActiveTab('add_certificate'); }} isLoading={loadingCerts} /> :
                 activeTab === 'add_certificate' ? <CertificateBuilder initialData={editingCertificate} onSave={handleSaveCertificate} onCancel={() => setActiveTab('certificates')} isSaving={isSaving} /> :
-                
                 <ProfileSection user={user} />
               }
             </motion.div>
@@ -1020,6 +1327,3 @@ const TutorDashboard: React.FC = () => {
 };
 
 export default TutorDashboard;
-
-
-// check that it work correctly

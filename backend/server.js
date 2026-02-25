@@ -4,9 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
 
-// --- 1. Import the seeder function ---
-
-// Adjust the path if needed
+// --- Import Routes & Utils ---
 const authRoutes = require('./routes/authRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const certificateRoutes = require('./routes/certificateRoutes'); 
@@ -14,21 +12,16 @@ const seedInstructors = require('./utlis/Seeder');
 
 dotenv.config();
 
-// --- 2. Connect to Database and run Seeder ---
+// --- Connect to Database ---
 connectDB().then(() => {
-    // This will check and create the default instructors if they don't exist
     seedInstructors(); 
 });
 
 const app = express();
 
+// --- CORS CONFIGURATION (Fixed) ---
 app.use(cors({
-    // origin: 'http://localhost:5173', 
-    // origin: 'http://techiguru.in', 
-    origin: '*', 
-    // origin: 'https://techiguru.vercel.app', 
-    // origin: 'http://techiguru-frontend.s3-website.ap-south-1.amazonaws.com', 
-    // origin: 'http://techiguru-frontend.s3-website.ap-south-1.amazonaws.com', 
+    origin: true, // Allows all origins dynamically while supporting credentials
     credentials: true
 }));
 
@@ -39,14 +32,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/certificates', certificateRoutes); 
 
-// Static folder for uploaded images
+// --- STATIC FOLDER ---
+// Serve images/files uploaded to /uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {
   res.send('API is running...');
 });
 
-// 404 Error Handler
+// 404 Handler
 app.use((req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`);
   res.status(404);

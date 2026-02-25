@@ -1,133 +1,174 @@
-import React from 'react';
+import React, { memo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Users, BookOpen, Clock, PlayCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Star, Users, BookOpen, Clock, PlayCircle, ArrowRight, ImageOff } from 'lucide-react';
 
-interface CourseProps {
-  course: {
-    id: string | number; // MongoDB uses string IDs
+// --- TYPES ---
+export interface CourseSummary {
+    id: string | number;
     title: string;
     category: string;
-    students?: number;
-    rating?: number;
     price: string | number;
-    thumbnail: string | { url: string } | any; // 🔥 FIXED: Allow object or string
+    thumbnail: string | { url: string };
+    rating?: number;
+    students?: number;
     lessons?: number;
     duration?: string;
-  };
-  isInactive?: boolean;
 }
 
-const CourseCard: React.FC<CourseProps> = ({ course, isInactive }) => {
-  const navigate = useNavigate();
+interface CourseCardProps {
+    course: CourseSummary;
+    isInactive?: boolean;
+}
 
-  const handleNavigation = () => {
-    // Navigate to the specific course detail page
-    navigate(`/course/${course.id}`);
-  };
-
-  // --- HELPER: Fix Broken URLs & Handle Data Types ---
-  const getThumbnailUrl = (thumb: any) => {
-    if (!thumb) return 'https://via.placeholder.com/600x400?text=No+Image';
-    
-    // 🔥 Extract the string whether the backend sends a String or an Object { url: '...' }
-    const urlString = typeof thumb === 'string' ? thumb : thumb.url;
-    
-    if (!urlString) return 'https://via.placeholder.com/600x400?text=No+Image';
-
-    // Check if it's a local upload from the backend
+// --- UTILITY (Local helper to keep single-file structure if preferred) ---
+const getValidImageUrl = (thumbnail: string | { url: string } | null | undefined): string => {
+    const placeholder = 'https://via.placeholder.com/600x400?text=No+Image';
+    if (!thumbnail) return placeholder;
+    const urlString = typeof thumbnail === 'string' ? thumbnail : thumbnail.url;
+    if (!urlString) return placeholder;
     if (urlString.startsWith('/uploads') || urlString.startsWith('\\uploads')) {
-      // Replace backslashes with forward slashes for URL compatibility
-      return `http://13.127.138.86:5000${urlString.replace(/\\/g, '/')}`;
+        return `http://13.127.138.86:5000${urlString.replace(/\\/g, '/')}`;
     }
-    
-    // Return external URLs (e.g. Unsplash) as is
     return urlString;
-  };
-
-  return (
-    <motion.div 
-      whileHover={{ y: -8 }}
-      className="group bg-white rounded-2xl overflow-hidden border border-slate-100 hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full"
-    >
-      {/* Thumbnail Section - Clickable */}
-      <div 
-        onClick={handleNavigation}
-        className="relative h-52 overflow-hidden cursor-pointer"
-      >
-        <motion.img 
-          whileHover={{ scale: 1.05 }}
-          transition={{ duration: 0.6 }}
-          src={getThumbnailUrl(course.thumbnail)} 
-          alt={course.title} 
-          className="w-full h-full object-cover"
-          // Fallback if image fails to load entirely
-          onError={(e: any) => {
-            e.target.onerror = null; 
-            e.target.src = "https://via.placeholder.com/600x400?text=Image+Error";
-          }}
-        />
-        
-        {/* Category Badge */}
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 uppercase tracking-wide shadow-sm">
-          {course.category || 'Course'}
-        </div>
-
-        {/* Play Overlay (appears on hover) */}
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-purple-600 shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-            <PlayCircle size={24} fill="currentColor" className="text-purple-600" />
-          </div>
-        </div>
-      </div>
-
-      {/* Content Section */}
-      <div className="p-6 flex flex-col flex-1">
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-1 text-amber-500 font-bold text-sm">
-            <Star size={16} fill="currentColor" />
-            <span>{course.rating || 0}</span>
-          </div>
-          {/* Price / Access Badge */}
-          <span className={`text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider ${
-              isInactive ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'
-          }`}>
-            {isInactive ? 'Archived' : (course.price === 0 || course.price === 'Free' ? 'Free' : `$${course.price}`)}
-          </span>
-        </div>
-
-        {/* Title - Clickable */}
-        <h3 
-          onClick={handleNavigation}
-          className="text-lg font-bold text-slate-900 mb-3 line-clamp-2 leading-snug group-hover:text-purple-600 transition-colors cursor-pointer"
-        >
-          {course.title}
-        </h3>
-
-        {/* Meta Details */}
-        <div className="flex items-center gap-4 text-slate-500 text-xs font-medium mb-6 mt-auto pt-4 border-t border-slate-50">
-          <div className="flex items-center gap-1.5">
-            <BookOpen size={14} className="text-purple-400"/> {course.lessons || 0} Lsns
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Clock size={14} className="text-purple-400"/> {course.duration || '0h'}
-          </div>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <Users size={14} className="text-slate-400"/> {course.students || 0}
-          </div>
-        </div>
-
-        {/* Action Button - Clickable */}
-        <button 
-          onClick={handleNavigation}
-          className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all bg-slate-900 text-white hover:bg-purple-600 shadow-md hover:shadow-purple-200"
-        >
-          {isInactive ? 'Watch Archive' : 'Start Learning'} 
-          <PlayCircle size={18} />
-        </button>
-      </div>
-    </motion.div>
-  );
 };
 
-export default CourseCard;
+// --- SUB-COMPONENTS ---
+
+const CourseThumbnail: React.FC<{ src: string | { url: string }, alt: string, category: string }> = ({ src, alt, category }) => {
+    const [imgError, setImgError] = useState(false);
+
+    return (
+        <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
+            <motion.div 
+                className="w-full h-full"
+                whileHover={{ scale: 1.05 }} 
+                transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
+            >
+                {imgError ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                        <ImageOff size={32} className="mb-2 opacity-50" />
+                        <span className="text-xs font-medium">Image unavailable</span>
+                    </div>
+                ) : (
+                    <img 
+                        src={getValidImageUrl(src)} 
+                        alt={alt} 
+                        className="w-full h-full object-cover transition-opacity duration-300"
+                        loading="lazy"
+                        onError={() => setImgError(true)}
+                    />
+                )}
+            </motion.div>
+
+            {/* Category Badge */}
+            <div className="absolute top-3 left-3">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/95 text-slate-800 shadow-sm backdrop-blur-md">
+                    {category || 'General'}
+                </span>
+            </div>
+
+            {/* Hover Play Overlay */}
+            <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[1px]">
+                <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    whileHover={{ scale: 1.1 }}
+                    className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-violet-600 shadow-xl"
+                >
+                    <PlayCircle size={24} fill="currentColor" />
+                </motion.div>
+            </div>
+        </div>
+    );
+};
+
+const CourseMeta: React.FC<{ lessons?: number, duration?: string, students?: number }> = ({ lessons = 0, duration = '0h', students = 0 }) => (
+    <div className="flex items-center justify-between text-xs font-medium text-slate-500 pt-4 border-t border-slate-100 mt-auto">
+        <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5" title={`${lessons} Lessons`}>
+                <BookOpen size={14} className="text-violet-500/80" />
+                <span>{lessons} Lsns</span>
+            </div>
+            <div className="flex items-center gap-1.5" title={`Duration: ${duration}`}>
+                <Clock size={14} className="text-violet-500/80" />
+                <span>{duration}</span>
+            </div>
+        </div>
+        <div className="flex items-center gap-1.5" title={`${students} Students enrolled`}>
+            <Users size={14} className="text-slate-400" />
+            <span>{students}</span>
+        </div>
+    </div>
+);
+
+// --- MAIN COMPONENT ---
+
+const CourseCard: React.FC<CourseCardProps> = ({ course, isInactive = false }) => {
+    const navigate = useNavigate();
+
+    const handleNavigation = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigate(`/course/${course.id}`);
+    };
+
+    const displayPrice = course.price === 0 || course.price === 'Free' ? 'Free' : `$${course.price}`;
+    
+    return (
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -5 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            onClick={handleNavigation}
+            className="group flex flex-col h-full bg-white rounded-2xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-xl hover:shadow-slate-200/50 hover:border-violet-100 transition-all duration-300"
+            role="article"
+            aria-label={`View course: ${course.title}`}
+        >
+            <CourseThumbnail 
+                src={course.thumbnail} 
+                alt={course.title} 
+                category={course.category} 
+            />
+
+            <div className="flex flex-col flex-1 p-5">
+                {/* Header: Rating & Price */}
+                <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded text-xs font-bold text-amber-600">
+                        <Star size={12} className="fill-amber-500 text-amber-500" />
+                        <span>{course.rating || 0}</span>
+                    </div>
+                    
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${
+                        isInactive 
+                            ? 'bg-slate-100 text-slate-500' 
+                            : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                        {isInactive ? 'Archived' : displayPrice}
+                    </span>
+                </div>
+
+                {/* Title */}
+                <h3 className="text-[17px] font-bold text-slate-900 leading-tight mb-3 line-clamp-2 group-hover:text-violet-600 transition-colors">
+                    {course.title}
+                </h3>
+
+                {/* Stats */}
+                <CourseMeta 
+                    lessons={course.lessons} 
+                    duration={course.duration} 
+                    students={course.students} 
+                />
+
+                {/* Mobile/Hover Action Hint */}
+                <div className="mt-4 pt-4 border-t border-slate-50 block animate-in fade-in zoom-in duration-200">
+                    <button className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 group-hover:bg-violet-600 transition-colors">
+                        {isInactive ? 'View Details' : 'Start Learning'}
+                        <ArrowRight size={16} />
+                    </button>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+export default memo(CourseCard);
