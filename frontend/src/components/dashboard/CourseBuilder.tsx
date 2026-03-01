@@ -31,8 +31,8 @@ export interface CourseData {
 const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        // return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
-        return `http://localhost:5000${url.replace(/\\/g, '/')}`;
+        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
+        // return `http://localhost:5000${url.replace(/\\/g, '/')}`;
     }
     return url;
 };
