@@ -212,8 +212,8 @@ const AdminDashboard = () => {
     );
 
     const students = allUsers.filter(u => u.role === 'student');
-    const filteredStudents = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase()));
-    const filteredCourses = allCourses.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
+    const filteredStudents = students.filter(s => (s.name || '').toLowerCase().includes(search.toLowerCase()) || (s.email || '').toLowerCase().includes(search.toLowerCase()));
+    const filteredCourses = allCourses.filter(c => (c.title || '').toLowerCase().includes(search.toLowerCase()));
 
     return (
         <div className="flex min-h-screen" style={{ background: '#f7f8fa', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -275,7 +275,7 @@ const AdminDashboard = () => {
                                         ) : pendingInstructors.map(inst => (
                                             <div key={inst._id} className="flex items-center gap-3 px-5 py-3">
                                                 <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-100 text-purple-700 font-bold text-sm flex-shrink-0">
-                                                    {inst.name[0]}
+                                                    {(inst.name || inst.email || "?")[0].toUpperCase()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-gray-800 truncate">{inst.name}</p>
@@ -347,8 +347,8 @@ const AdminDashboard = () => {
                                                 <tr key={u._id} className="hover:bg-gray-50 transition-colors">
                                                     <td className="px-5 py-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs">{u.name[0]}</div>
-                                                            <div><p className="font-medium text-gray-800">{u.name}</p><p className="text-xs text-gray-400">{u.email}</p></div>
+                                                            <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs">{(u.name || u.email || '?')[0].toUpperCase()}</div>
+                                                            <div><p className="font-medium text-gray-800">{u.name || <span className="text-gray-400 italic text-xs">No name</span>}</p><p className="text-xs text-gray-400">{u.email}</p></div>
                                                         </div>
                                                     </td>
                                                     <td className="px-5 py-3">
@@ -389,7 +389,7 @@ const AdminDashboard = () => {
                                                             {inst.avatar ? (
                                                                 <img src={inst.avatar} alt={inst.name} className="w-8 h-8 rounded-full object-cover" />
                                                             ) : (
-                                                                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm">{inst.name[0]}</div>
+                                                                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm">{(inst.name || inst.email || "?")[0].toUpperCase()}</div>
                                                             )}
                                                             <div><p className="font-semibold text-gray-800">{inst.name}</p><p className="text-xs text-gray-400">{inst.email}</p></div>
                                                         </div>
@@ -497,7 +497,7 @@ const AdminDashboard = () => {
                                                 <tr key={s._id} className="hover:bg-gray-50">
                                                     <td className="px-5 py-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">{s.name[0]}</div>
+                                                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">{(s.name || s.email || '?')[0].toUpperCase()}</div>
                                                             <div><p className="font-semibold text-gray-800">{s.name}</p><p className="text-xs text-gray-400">{s.email}</p></div>
                                                         </div>
                                                     </td>

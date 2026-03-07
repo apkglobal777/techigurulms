@@ -178,10 +178,14 @@ const getAllUsers = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/admin/users/unverified
-// Returns all accounts that have not completed email verification
+// Returns accounts that explicitly have isEmailVerified: false + completed registration
 const getUnverifiedUsers = async (req, res) => {
     try {
-        const users = await User.find({ isEmailVerified: false })
+        const users = await User.find({
+            isEmailVerified: false,
+            name: { $exists: true, $ne: '' },   // has completed the name step
+            password: { $exists: true },         // has completed registration
+        })
             .select('name email role createdAt lastLogin')
             .sort({ createdAt: -1 });
 
@@ -227,7 +231,11 @@ const resendVerificationLink = async (req, res) => {
 // Sends a verification link to EVERY account that hasn't verified their email yet
 const resendVerificationToAll = async (req, res) => {
     try {
-        const unverifiedUsers = await User.find({ isEmailVerified: false })
+        const unverifiedUsers = await User.find({
+            isEmailVerified: false,
+            name: { $exists: true, $ne: '' },
+            password: { $exists: true },
+        })
             .select('+verifyToken +verifyTokenExpire name email');
 
         if (unverifiedUsers.length === 0) {
