@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Course = require('../models/Course');
 const StudentCertificate = require('../models/StudentCertificate');
+const { generateOTP, sendOTPEmail } = require('../utlis/emailService');
 
 const ADMIN_EMAILS = ['vc2802204@gmail.com', 'techiguru.in@gmail.com'];
 
@@ -172,6 +173,104 @@ const getAllUsers = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EMAIL VERIFICATION MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/users/unverified
+// Returns all accounts that were created but never completed email verification
+const getUnverifiedUsers = async (req, res) => {
+    try {
+        // name check ensures we only return "real" pending registrations,
+        // not OTP-placeholder records that have no name yet
+        const users = await User.find({
+            isEmailVerified: false,
+            name: { $exists: true, $ne: '' }
+        })
+            .select('name email role createdAt lastLogin')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            count: users.length,
+            users
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// POST /api/admin/users/:id/resend-verification
+// Generates a fresh OTP and re-sends the verification email to the user
+const resendVerificationOTP = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.isEmailVerified) {
+            return res.status(400).json({ message: 'This user has already verified their email.' });
+        }
+
+        const otp = generateOTP();
+        user.emailOTP = otp;
+        user.emailOTPExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        await user.save({ validateModifiedOnly: true });
+
+        await sendOTPEmail(user.email, otp, 'signup');
+
+        res.json({
+            message: `Verification OTP re-sent successfully to ${user.email}`,
+            email: user.email
+        });
+    } catch (err) {
+        console.error('resendVerificationOTP error:', err);
+        res.status(500).json({ message: 'Failed to resend OTP: ' + err.message });
+    }
+};
+
+// POST /api/admin/users/resend-verification-all
+// Sends a fresh OTP to EVERY account that hasn't verified their email yet
+const resendVerificationToAll = async (req, res) => {
+    try {
+        const unverifiedUsers = await User.find({
+            isEmailVerified: false,
+            name: { $exists: true, $ne: '' }
+        }).select('name email');
+
+        if (unverifiedUsers.length === 0) {
+            return res.json({ message: 'No unverified users found.', sent: 0, failed: 0, results: [] });
+        }
+
+        const results = [];
+        let sent = 0;
+        let failed = 0;
+
+        for (const user of unverifiedUsers) {
+            try {
+                const otp = generateOTP();
+                await User.findByIdAndUpdate(user._id, {
+                    emailOTP: otp,
+                    emailOTPExpire: new Date(Date.now() + 10 * 60 * 1000)
+                });
+                await sendOTPEmail(user.email, otp, 'signup');
+                results.push({ email: user.email, name: user.name, status: 'sent' });
+                sent++;
+            } catch (emailErr) {
+                results.push({ email: user.email, name: user.name, status: 'failed', error: emailErr.message });
+                failed++;
+            }
+        }
+
+        res.json({
+            message: `Bulk resend complete. Sent: ${sent}, Failed: ${failed}`,
+            sent,
+            failed,
+            results
+        });
+    } catch (err) {
+        console.error('resendVerificationToAll error:', err);
+        res.status(500).json({ message: 'Bulk resend failed: ' + err.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STUDENT CERTIFICATE MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -242,5 +341,6 @@ module.exports = {
     getPendingInstructors, getAllInstructors, approveInstructor, rejectInstructor,
     getPendingCourses, getAllCourses, approveCourse, rejectCourse,
     getPlatformStats, getAllUsers,
-    getAllStudentCertificates, approveStudentCertificate, rejectStudentCertificate
+    getAllStudentCertificates, approveStudentCertificate, rejectStudentCertificate,
+    getUnverifiedUsers, resendVerificationOTP, resendVerificationToAll
 };

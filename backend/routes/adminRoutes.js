@@ -6,7 +6,8 @@ const {
     getPendingInstructors, getAllInstructors, approveInstructor, rejectInstructor,
     getPendingCourses, getAllCourses, approveCourse, rejectCourse,
     getPlatformStats, getAllUsers,
-    getAllStudentCertificates, approveStudentCertificate, rejectStudentCertificate
+    getAllStudentCertificates, approveStudentCertificate, rejectStudentCertificate,
+    getUnverifiedUsers, resendVerificationOTP, resendVerificationToAll
 } = require('../controllers/adminController');
 
 // All admin routes require login + admin check
@@ -17,6 +18,9 @@ router.get('/stats', getPlatformStats);
 
 // Users
 router.get('/users', getAllUsers);
+router.get('/users/unverified', getUnverifiedUsers);                       // List unverified accounts
+router.post('/users/resend-verification-all', resendVerificationToAll);    // Bulk resend to ALL unverified
+router.post('/users/:id/resend-verification', resendVerificationOTP);      // Resend to one specific user
 
 // Instructors
 router.get('/instructors', getAllInstructors);
