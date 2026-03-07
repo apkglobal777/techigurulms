@@ -20,6 +20,7 @@ import Inactive from "./page/Inactive";
 import CourseDetail from "./components/Course/CourseDetail";
 import CourseMarketing from "./page/CourseMarketing";
 import CertificatesPage from "./page/CertificatesPage";
+import VerifyEmailPage from "./page/VerifyEmail";
 
 const ADMIN_EMAILS = ['vc2802204@gmail.com', 'techiguru.in@gmail.com'];
 
@@ -85,6 +86,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
 
             {/* PROTECTED ROUTES */}
             <Route path="/dashboard" element={<PrivateRoute><TutorDashboard /></PrivateRoute>} />

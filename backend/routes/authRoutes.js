@@ -15,6 +15,9 @@ const {
   verifyAndRegister,
   forgotPassword,
   resetPasswordWithOTP,
+  sendVerifyAccountOTP,
+  verifyAccountWithOTP,
+  verifyEmailByToken,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -53,6 +56,13 @@ router.post('/verify-register', verifyAndRegister);
 // Forgot / Reset Password via OTP
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password-otp', resetPasswordWithOTP);
+
+// Manual account verification (for unverified users who can't log in)
+router.post('/send-verify-otp', sendVerifyAccountOTP);       // Step 1: send OTP to email
+router.post('/verify-account-otp', verifyAccountWithOTP);    // Step 2: submit OTP to verify
+
+// Admin token-based verification link (redirect via backend)
+router.get('/verify-email', verifyEmailByToken);             // Clicked from email link
 
 // ── Protected Routes ───────────────────────────────────────────────────────────
 router.get('/me', protect, getMe);

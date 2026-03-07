@@ -7,7 +7,7 @@ import {
     Users, BookOpen, TrendingUp, Clock, CheckCircle, XCircle, Eye,
     BarChart3, GraduationCap, AlertCircle, RefreshCw, Medal, ChevronRight,
     IndianRupee, Shield, UserCheck, Search, Filter, LogOut, Menu, X,
-    Upload, Award, Star, FileText, ExternalLink
+    Upload, Award, Star, FileText, ExternalLink, MailCheck, Send, ShieldAlert
 } from 'lucide-react';
 import { getImageUrl } from '../config';
 
@@ -43,6 +43,11 @@ const AdminDashboard = () => {
     const [actionLoading, setActionLoading] = useState(null);
     const [studentCerts, setStudentCerts] = useState([]);
     const [certNote, setCertNote] = useState({});
+    const [unverifiedUsers, setUnverifiedUsers] = useState([]);
+    const [resendStatus, setResendStatus] = useState({}); // per-user status
+    const [bulkLoading, setBulkLoading] = useState(false);
+    const [bulkResult, setBulkResult] = useState(null);
+    const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
     // Auth guard
     useEffect(() => {
@@ -55,13 +60,14 @@ const AdminDashboard = () => {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [statsRes, pendingInstRes, pendingCoursesRes, usersRes, coursesRes, certRes] = await Promise.all([
+            const [statsRes, pendingInstRes, pendingCoursesRes, usersRes, coursesRes, certRes, unverifiedRes] = await Promise.all([
                 api.get('/admin/stats'),
                 api.get('/admin/instructors/pending'),
                 api.get('/admin/courses/pending'),
                 api.get('/admin/users'),
                 api.get('/admin/courses'),
                 api.get('/admin/student-certs'),
+                api.get('/admin/users/unverified'),
             ]);
             setStats(statsRes.data);
             setPendingInstructors(pendingInstRes.data);
@@ -69,6 +75,7 @@ const AdminDashboard = () => {
             setAllUsers(usersRes.data);
             setAllCourses(coursesRes.data);
             setStudentCerts(certRes.data);
+            setUnverifiedUsers(unverifiedRes.data.users || []);
         } catch (err) { console.error(err); }
         setLoading(false);
     }, []);
@@ -117,11 +124,36 @@ const AdminDashboard = () => {
         setActionLoading(null);
     };
 
+    const handleResendLink = async (userId) => {
+        setResendStatus(p => ({ ...p, [userId]: 'loading' }));
+        try {
+            await api.post(`/admin/users/${userId}/resend-verification`);
+            setResendStatus(p => ({ ...p, [userId]: 'sent' }));
+        } catch (err) {
+            setResendStatus(p => ({ ...p, [userId]: 'error' }));
+        }
+    };
+
+    const handleBulkResend = async () => {
+        setShowBulkConfirm(false);
+        setBulkLoading(true);
+        setBulkResult(null);
+        try {
+            const res = await api.post('/admin/users/resend-verification-all');
+            setBulkResult(res.data);
+            await loadData(); // refresh list
+        } catch (err) {
+            setBulkResult({ message: 'Bulk resend failed: ' + (err.response?.data?.message || err.message), sent: 0, failed: 0, results: [] });
+        }
+        setBulkLoading(false);
+    };
+
     const TABS = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
         { id: 'instructors', label: 'Instructors', icon: UserCheck, badge: pendingInstructors.length },
         { id: 'courses', label: 'Courses', icon: BookOpen, badge: pendingCourses.length },
         { id: 'students', label: 'Students', icon: Users },
+        { id: 'unverified', label: 'Unverified', icon: ShieldAlert, badge: unverifiedUsers.length },
         { id: 'student-certs', label: 'Student Certs', icon: Award, badge: studentCerts.filter(c => c.status === 'pending').length },
         { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     ];
@@ -586,6 +618,146 @@ const AdminDashboard = () => {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* UNVERIFIED USERS TAB */}
+                    {activeTab === 'unverified' && (
+                        <div className="space-y-5 max-w-6xl">
+                            {/* Header row */}
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900">Unverified Accounts</h2>
+                                    <p className="text-sm text-gray-500 mt-0.5">{unverifiedUsers.length} user{unverifiedUsers.length !== 1 ? 's' : ''} haven't verified their email yet.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowBulkConfirm(true)}
+                                    disabled={bulkLoading || unverifiedUsers.length === 0}
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-50 shadow-md">
+                                    {bulkLoading ? <><RefreshCw size={14} className="animate-spin" />Sending...</> : <><Send size={14} />Resend All ({unverifiedUsers.length})</>}
+                                </button>
+                            </div>
+
+                            {/* Bulk result banner */}
+                            {bulkResult && (
+                                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                                    className={`rounded-xl px-5 py-4 border text-sm font-medium flex items-start gap-3 ${
+                                        bulkResult.failed === 0
+                                        ? 'bg-green-50 border-green-200 text-green-800'
+                                        : 'bg-amber-50 border-amber-200 text-amber-800'
+                                    }`}>
+                                    {bulkResult.failed === 0 ? <MailCheck size={16} className="mt-0.5 flex-shrink-0" /> : <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />}
+                                    <div>
+                                        <p className="font-bold">{bulkResult.message}</p>
+                                        {bulkResult.results?.filter(r => r.status === 'failed').map((r, i) => (
+                                            <p key={i} className="text-xs mt-1 opacity-80">✗ {r.email} — {r.error}</p>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => setBulkResult(null)} className="ml-auto text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                                </motion.div>
+                            )}
+
+                            {/* Table */}
+                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                {unverifiedUsers.length === 0 ? (
+                                    <div className="py-14 text-center">
+                                        <CheckCircle size={36} className="mx-auto mb-3 text-green-400" />
+                                        <p className="font-semibold text-gray-700">All accounts are verified!</p>
+                                        <p className="text-sm text-gray-400 mt-1">No unverified users at the moment.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead><tr className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wider">
+                                                <th className="px-5 py-3 text-left">User</th>
+                                                <th className="px-5 py-3 text-left">Role</th>
+                                                <th className="px-5 py-3 text-left">Registered</th>
+                                                <th className="px-5 py-3 text-right">Action</th>
+                                            </tr></thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {unverifiedUsers.map(u => {
+                                                    const st = resendStatus[u._id];
+                                                    return (
+                                                        <tr key={u._id} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-5 py-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 font-bold text-sm flex-shrink-0">
+                                                                        {(u.name || u.email)[0].toUpperCase()}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-semibold text-gray-800">{u.name || <span className="text-gray-400 italic">No name</span>}</p>
+                                                                        <p className="text-xs text-gray-400">{u.email}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-5 py-3">
+                                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                                    u.role === 'admin' ? 'bg-red-50 text-red-700' :
+                                                                    u.role === 'instructor' ? 'bg-purple-50 text-purple-700' :
+                                                                    'bg-blue-50 text-blue-700'
+                                                                }`}>{u.role || 'student'}</span>
+                                                            </td>
+                                                            <td className="px-5 py-3 text-gray-400 text-xs">{new Date(u.createdAt).toLocaleDateString('en-IN')}</td>
+                                                            <td className="px-5 py-3 text-right">
+                                                                {st === 'sent' ? (
+                                                                    <span className="flex items-center justify-end gap-1.5 text-green-600 text-xs font-semibold">
+                                                                        <MailCheck size={14} />Link Sent!
+                                                                    </span>
+                                                                ) : st === 'error' ? (
+                                                                    <button onClick={() => handleResendLink(u._id)}
+                                                                        className="text-xs text-rose-600 font-semibold hover:underline">Retry</button>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => handleResendLink(u._id)}
+                                                                        disabled={st === 'loading'}
+                                                                        className="flex items-center justify-end gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50 ml-auto">
+                                                                        {st === 'loading' ? <><RefreshCw size={12} className="animate-spin" />Sending...</> : <><Send size={12} />Resend Link</>}
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bulk Confirm Modal */}
+                            <AnimatePresence>
+                                {showBulkConfirm && (
+                                    <>
+                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                            onClick={() => setShowBulkConfirm(false)}
+                                            className="fixed inset-0 bg-black/50 z-50" />
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.92 }}
+                                            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-7 w-full max-w-sm">
+                                            <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center mb-4">
+                                                <Send size={22} className="text-indigo-600" />
+                                            </div>
+                                            <h3 className="text-lg font-black text-gray-900 mb-1">Send to All?</h3>
+                                            <p className="text-sm text-gray-500 mb-6">
+                                                This will send verification links to all <strong>{unverifiedUsers.length}</strong> unverified user{unverifiedUsers.length !== 1 ? 's' : ''}.
+                                                Each link is valid for 24 hours.
+                                            </p>
+                                            <div className="flex gap-3">
+                                                <button onClick={() => setShowBulkConfirm(false)}
+                                                    className="flex-1 h-11 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                                                    Cancel
+                                                </button>
+                                                <button onClick={handleBulkResend}
+                                                    className="flex-1 h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-colors">
+                                                    Send Links
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
                         </div>
                     )}
 

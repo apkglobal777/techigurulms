@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const Course = require('../models/Course');
 const StudentCertificate = require('../models/StudentCertificate');
-const { generateOTP, sendOTPEmail } = require('../utlis/emailService');
+const crypto = require('crypto');
+const { sendVerificationLinkEmail } = require('../utlis/emailService');
 
 const ADMIN_EMAILS = ['vc2802204@gmail.com', 'techiguru.in@gmail.com'];
 
@@ -177,83 +178,84 @@ const getAllUsers = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/admin/users/unverified
-// Returns all accounts that were created but never completed email verification
+// Returns all accounts that have not completed email verification
 const getUnverifiedUsers = async (req, res) => {
     try {
-        // name check ensures we only return "real" pending registrations,
-        // not OTP-placeholder records that have no name yet
-        const users = await User.find({
-            isEmailVerified: false,
-            name: { $exists: true, $ne: '' }
-        })
+        const users = await User.find({ isEmailVerified: false })
             .select('name email role createdAt lastLogin')
             .sort({ createdAt: -1 });
 
-        res.json({
-            count: users.length,
-            users
-        });
+        res.json({ count: users.length, users });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
 // POST /api/admin/users/:id/resend-verification
-// Generates a fresh OTP and re-sends the verification email to the user
-const resendVerificationOTP = async (req, res) => {
+// Generates a secure token and sends a verification link to the user (valid 24h)
+const resendVerificationLink = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.id).select('+verifyToken +verifyTokenExpire');
         if (!user) return res.status(404).json({ message: 'User not found' });
         if (user.isEmailVerified) {
             return res.status(400).json({ message: 'This user has already verified their email.' });
         }
 
-        const otp = generateOTP();
-        user.emailOTP = otp;
-        user.emailOTPExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        // Generate cryptographically secure token
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+        user.verifyToken = hashedToken;
+        user.verifyTokenExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
         await user.save({ validateModifiedOnly: true });
 
-        await sendOTPEmail(user.email, otp, 'signup');
+        const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+        const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${rawToken}`;
+
+        await sendVerificationLinkEmail(user.email, user.name, verifyUrl);
 
         res.json({
-            message: `Verification OTP re-sent successfully to ${user.email}`,
+            message: `Verification link sent to ${user.email} (valid 24 hours)`,
             email: user.email
         });
     } catch (err) {
-        console.error('resendVerificationOTP error:', err);
-        res.status(500).json({ message: 'Failed to resend OTP: ' + err.message });
+        console.error('resendVerificationLink error:', err);
+        res.status(500).json({ message: 'Failed to send verification link: ' + err.message });
     }
 };
 
 // POST /api/admin/users/resend-verification-all
-// Sends a fresh OTP to EVERY account that hasn't verified their email yet
+// Sends a verification link to EVERY account that hasn't verified their email yet
 const resendVerificationToAll = async (req, res) => {
     try {
-        const unverifiedUsers = await User.find({
-            isEmailVerified: false,
-            name: { $exists: true, $ne: '' }
-        }).select('name email');
+        const unverifiedUsers = await User.find({ isEmailVerified: false })
+            .select('+verifyToken +verifyTokenExpire name email');
 
         if (unverifiedUsers.length === 0) {
             return res.json({ message: 'No unverified users found.', sent: 0, failed: 0, results: [] });
         }
 
+        const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
         const results = [];
         let sent = 0;
         let failed = 0;
 
         for (const user of unverifiedUsers) {
             try {
-                const otp = generateOTP();
+                const rawToken = crypto.randomBytes(32).toString('hex');
+                const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
                 await User.findByIdAndUpdate(user._id, {
-                    emailOTP: otp,
-                    emailOTPExpire: new Date(Date.now() + 10 * 60 * 1000)
+                    verifyToken: hashedToken,
+                    verifyTokenExpire: new Date(Date.now() + 24 * 60 * 60 * 1000),
                 });
-                await sendOTPEmail(user.email, otp, 'signup');
-                results.push({ email: user.email, name: user.name, status: 'sent' });
+
+                const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${rawToken}`;
+                await sendVerificationLinkEmail(user.email, user.name, verifyUrl);
+
+                results.push({ email: user.email, name: user.name || '(no name)', status: 'sent' });
                 sent++;
             } catch (emailErr) {
-                results.push({ email: user.email, name: user.name, status: 'failed', error: emailErr.message });
+                results.push({ email: user.email, name: user.name || '(no name)', status: 'failed', error: emailErr.message });
                 failed++;
             }
         }
@@ -342,5 +344,5 @@ module.exports = {
     getPendingCourses, getAllCourses, approveCourse, rejectCourse,
     getPlatformStats, getAllUsers,
     getAllStudentCertificates, approveStudentCertificate, rejectStudentCertificate,
-    getUnverifiedUsers, resendVerificationOTP, resendVerificationToAll
+    getUnverifiedUsers, resendVerificationLink, resendVerificationToAll
 };

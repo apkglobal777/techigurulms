@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { generateOTP, sendOTPEmail } = require('../utlis/emailService');
 
 const ADMIN_EMAILS = ['vc2802204@gmail.com', 'techiguru.in@gmail.com'];
@@ -327,9 +328,89 @@ const uploadAvatar = async (req, res) => {
   }
 };
 
+// ── Send Verify-Account OTP (for unverified users who can't log in) ────────────
+const sendVerifyAccountOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+emailOTP +emailOTPExpire');
+    if (!user) return res.status(400).json({ message: 'No account found with this email.' });
+    if (user.isEmailVerified) return res.status(400).json({ message: 'This account is already verified. Please log in.' });
+
+    const otp = generateOTP();
+    user.emailOTP = otp;
+    user.emailOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save({ validateModifiedOnly: true });
+
+    await sendOTPEmail(email, otp, 'verify');
+    res.json({ message: 'Verification OTP sent to your email. Valid for 10 minutes.' });
+  } catch (error) {
+    console.error('sendVerifyAccountOTP error:', error);
+    res.status(500).json({ message: 'Failed to send OTP: ' + error.message });
+  }
+};
+
+// ── Verify Account with OTP (manual verify flow) ──────────────────────────────
+const verifyAccountWithOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+emailOTP +emailOTPExpire');
+    if (!user) return res.status(400).json({ message: 'No account found with this email.' });
+    if (user.isEmailVerified) return res.status(400).json({ message: 'Account is already verified.' });
+    if (!user.emailOTP || user.emailOTP !== otp) return res.status(400).json({ message: 'Invalid OTP. Please try again.' });
+    if (!user.emailOTPExpire || user.emailOTPExpire < Date.now()) return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+
+    user.isEmailVerified = true;
+    user.emailOTP = undefined;
+    user.emailOTPExpire = undefined;
+    await user.save({ validateModifiedOnly: true });
+
+    res.json({ message: 'Account verified successfully! You can now log in.' });
+  } catch (error) {
+    console.error('verifyAccountWithOTP error:', error);
+    res.status(500).json({ message: 'Server Error: ' + error.message });
+  }
+};
+
+// ── Verify email via admin token link ────────────────────────────────────────
+const verifyEmailByToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ message: 'Verification token is required' });
+
+    // Hash the incoming token to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      verifyToken: hashedToken,
+      verifyTokenExpire: { $gt: Date.now() },
+    }).select('+verifyToken +verifyTokenExpire');
+
+    if (!user) {
+      // Friendly redirect to frontend with error
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?status=invalid`);
+    }
+
+    user.isEmailVerified = true;
+    user.verifyToken = undefined;
+    user.verifyTokenExpire = undefined;
+    await user.save({ validateModifiedOnly: true });
+
+    // Redirect to frontend success page
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?status=success`);
+  } catch (error) {
+    console.error('verifyEmailByToken error:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?status=error`);
+  }
+};
+
 module.exports = {
   registerUser, loginUser, getMe, updateUserProfile,
   getMyEnrollments, getPublicProfile, uploadAvatar,
   sendSignupOTP, verifyAndRegister,
   forgotPassword, resetPasswordWithOTP,
+  sendVerifyAccountOTP, verifyAccountWithOTP, verifyEmailByToken,
 };

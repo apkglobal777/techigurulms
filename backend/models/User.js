@@ -82,10 +82,14 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   lastLogin: Date,
 
-  // ── Email OTP ─────────────────────────────────────────────────────────────
+  // ── Email OTP (signup / forgot password) ─────────────────────────────────
   emailOTP: { type: String, select: false },
   emailOTPExpire: { type: Date, select: false },
   isEmailVerified: { type: Boolean, default: false },
+
+  // ── Admin Verification Link (token emailed by admin) ──────────────────────
+  verifyToken: { type: String, select: false },
+  verifyTokenExpire: { type: Date, select: false },
 }, {
   timestamps: true
 });
