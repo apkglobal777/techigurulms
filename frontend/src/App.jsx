@@ -10,6 +10,7 @@ import Footer from "./components/Footer";
 import Contact from "./components/Contact";
 import SignupPage from "./page/Signup";
 import LoginPage from "./page/Login";
+import ForgotPasswordPage from "./page/ForgotPassword";
 import TutorDashboard from "./page/TutorDashbaord";
 import AdminDashboard from "./page/AdminDashboard";
 import StudentDashboard from "./page/StudentDashboard";
@@ -83,6 +84,7 @@ function App() {
             <Route path="/course/:id/learn" element={<PrivateRoute><CourseDetail /></PrivateRoute>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* PROTECTED ROUTES */}
             <Route path="/dashboard" element={<PrivateRoute><TutorDashboard /></PrivateRoute>} />

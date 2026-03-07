@@ -7,15 +7,8 @@ import {
     Search, Filter, Loader2, PackageOpen, PlayCircle, BookOpen,
     Clock, Users, Star, ArrowRight, CheckCircle
 } from 'lucide-react';
+import { getImageUrl } from '../../config';
 
-const getImageUrl = (url) => {
-    if (!url) return 'https://via.placeholder.com/600x400?text=Course';
-    if (typeof url === 'object' && url.url) return getImageUrl(url.url);
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `http://localhost:5000${url.replace(/\\/g, '/')}`;
-    }
-    return url;
-};
 
 const CATEGORIES = ['All', 'Development', 'Business', 'Design', 'Marketing', 'Lifestyle', 'IT & Software'];
 

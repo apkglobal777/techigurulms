@@ -6,14 +6,9 @@ import {
 } from 'lucide-react';
 import { useCourse } from '../../context/CourseContext';
 import api from '../../api/axios';
+import { getImageUrl } from '../../config';
 
-const getImageUrl = (url: string) => {
-    if (!url) return 'https://via.placeholder.com/80x56?text=No+Image';
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
-    }
-    return url;
-};
+
 
 interface CertData {
     id?: string;

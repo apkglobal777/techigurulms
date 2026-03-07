@@ -17,6 +17,8 @@ export const API_URL = `${BACKEND_URL}/api`;
  * Helper: Convert any stored image path to a full URL
  */
 export const getImageUrl = (url) => {
+    // console.log('getImageUrl called with:', url);
+    // console.log(url)
     if (!url) return null;
     if (typeof url === 'object' && url.url) return getImageUrl(url.url);
     if (url.startsWith('http://') || url.startsWith('https://')) return url;

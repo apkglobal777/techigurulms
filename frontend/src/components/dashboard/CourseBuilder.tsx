@@ -10,6 +10,7 @@ import VideoRow from './VideoRow';
 import type { VideoItem } from './VideoRow';
 import SyllabusBuilder from './SyllabusBuilder';
 import type { SyllabusTopic } from './SyllabusBuilder';
+import { getImageUrl } from '../../config';
 
 interface TopicItem { id: number | string; title: string; videos: VideoItem[]; }
 
@@ -28,15 +29,7 @@ export interface CourseData {
     syllabus?: SyllabusTopic[];
 }
 
-const getImageUrl = (url: string) => {
-    if (!url) return '';
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        // return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
-        return `https://api.techiguru.in${url.replace(/\\/g, '/')}`;
-        // return `http://localhost:5000${url.replace(/\\/g, '/')}`;
-    }
-    return url;
-};
+
 
 const TABS = [
     { id: 'details', label: 'Basic Info', icon: Settings },

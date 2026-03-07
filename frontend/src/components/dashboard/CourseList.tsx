@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Search, Edit2, Trash2, PlusCircle, Loader, Users, Clock } from 'lucide-react';
+import { getImageUrl } from '../../config';
 
-const getImageUrl = (url: string) => {
-    if (!url) return 'https://via.placeholder.com/60x42?text=No+Image';
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
-    }
-    return url;
-};
+
 
 interface CourseListProps {
     courses: any[];

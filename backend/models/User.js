@@ -80,7 +80,12 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   isActive: { type: Boolean, default: true },
-  lastLogin: Date
+  lastLogin: Date,
+
+  // ── Email OTP ─────────────────────────────────────────────────────────────
+  emailOTP: { type: String, select: false },
+  emailOTPExpire: { type: Date, select: false },
+  isEmailVerified: { type: Boolean, default: false },
 }, {
   timestamps: true
 });

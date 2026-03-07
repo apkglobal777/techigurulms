@@ -4,6 +4,7 @@ import {
     Users, BookOpen, Award, Clock, DollarSign, BarChart3,
     PlusCircle, ChevronRight, TrendingUp, ArrowUpRight
 } from 'lucide-react';
+import { getImageUrl } from '../../config';
 
 interface DashboardOverviewProps {
     courses: any[];
@@ -33,13 +34,6 @@ const StatCard = ({ label, value, icon: Icon, color, bg, delay, trend }: any) =>
     </motion.div>
 );
 
-const getImageUrl = (url: string) => {
-    if (!url) return 'https://via.placeholder.com/48x36?text=No+Image';
-    if (url.startsWith('/uploads') || url.startsWith('\\uploads')) {
-        return `http://13.127.138.86:5000${url.replace(/\\/g, '/')}`;
-    }
-    return url;
-};
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ courses, certificatesCount, onNavigate }) => {
     const activeCount = courses.filter(c => c.status === 'Active').length;

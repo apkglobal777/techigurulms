@@ -11,6 +11,10 @@ const {
   getMyEnrollments,
   getPublicProfile,
   uploadAvatar,
+  sendSignupOTP,
+  verifyAndRegister,
+  forgotPassword,
+  resetPasswordWithOTP,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -35,16 +39,25 @@ const upload = multer({
   }
 });
 
-// Public Routes
+// ── Public Routes ──────────────────────────────────────────────────────────────
+
+// Legacy register (no OTP) — kept for backward compat
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.get('/users/:id/profile', getPublicProfile);
 
-// Protected Routes
+// OTP-based Signup
+router.post('/send-signup-otp', sendSignupOTP);
+router.post('/verify-register', verifyAndRegister);
+
+// Forgot / Reset Password via OTP
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password-otp', resetPasswordWithOTP);
+
+// ── Protected Routes ───────────────────────────────────────────────────────────
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateUserProfile);
 router.get('/my-enrollments', protect, getMyEnrollments);
 router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
 
 module.exports = router;
-

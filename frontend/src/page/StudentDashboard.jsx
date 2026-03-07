@@ -415,10 +415,13 @@ const StudentDashboard = () => {
     const file = e.target.files[0]; if (!file) return;
     const fd = new FormData(); fd.append('avatar', file);
     try {
-      const { data: res } = await api.post('/auth/upload-avatar', fd, { headers:{ 'Content-Type':'multipart/form-data' } });
-      await updateProfile({ avatar: res.url });
-      showToast('Avatar updated!');
-    } catch { showToast('Avatar update failed', 'error'); }
+      const { data: res } = await api.post('/auth/avatar', fd, { headers:{ 'Content-Type':'multipart/form-data' } });
+      // res.avatar is the relative path e.g. /uploads/avatars/avatar-xxx.jpg
+      await updateProfile({ avatar: res.avatar });
+      showToast('Profile photo updated!');
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Avatar update failed', 'error');
+    }
   };
 
   const handleUploadSuccess = (result) => {
